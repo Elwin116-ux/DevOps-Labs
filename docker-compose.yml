@@ -1,0 +1,9 @@
+services:
+  app:
+    build: ./Lab01/SEMCode
+
+  db:
+    build: ./db
+    restart: always
+    ports:
+      - "33060:3306"
