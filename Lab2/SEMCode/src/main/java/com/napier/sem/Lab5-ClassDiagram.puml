@@ -1,0 +1,43 @@
+
+@startuml
+title Lab 5 - UML Class Diagram
+
+skinparam classAttributeIconSize 0
+
+class App {
+  - con : Connection
+  + connect() : void
+  + disconnect() : void
+  + getAllSalaries() : ArrayList<Employee>
+  + printSalaries(employees : ArrayList<Employee>) : void
+  + getEmployee(ID : int) : Employee
+  + getDepartment(dept_name : String) : Department
+  + getSalariesByDepartment(dept : Department) : ArrayList<Employee>
+  + displayEmployee(emp : Employee) : void
+  + main(args : String[]) : void
+}
+
+class Employee {
+  + emp_no : int
+  + first_name : String
+  + last_name : String
+  + title : String
+  + salary : int
+  + dept : Department
+  + manager : Employee
+}
+
+class Department {
+  + dept_no : String
+  + dept_name : String
+  + manager : Employee
+}
+
+App ..> Employee : uses
+App ..> Department : uses
+
+Employee --> Department : dept
+Employee --> Employee : manager
+Department --> Employee : manager
+
+@enduml
