@@ -1,14 +1,41 @@
-name: A workflow for my Hello World App
 
-on: push
+name: DevOps Labs - Maven Build and Unit Tests
+
+on:
+  push:
+  pull_request:
 
 jobs:
-  build:
-    name: Hello world action
+  lab1-build:
+    name: Lab 1 - Maven Build
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Run Maven
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build Lab 1
         run: mvn -B package --file Lab01/SEMCode/pom.xml
+
+  lab6-tests:
+    name: Lab 6 - JUnit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run Lab 6 Unit Tests
+        run: mvn -B test --file Lab2/SEMCode/pom.xml

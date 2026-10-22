@@ -134,6 +134,13 @@ public class App
      */
     public void printSalaries(ArrayList<Employee> employees)
     {
+
+        if (employees == null)
+        {
+            System.out.println("No employees");
+            return;
+        }
+
         // Print header
         System.out.println(
                 String.format(
@@ -148,6 +155,12 @@ public class App
         // Loop over all employees in the list
         for (Employee emp : employees)
         {
+
+            if (emp == null)
+            {
+                continue;
+            }
+
             String empString =
                     String.format(
                             "%-10s %-15s %-20s %-8s",
