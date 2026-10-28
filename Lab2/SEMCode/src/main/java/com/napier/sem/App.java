@@ -1,3 +1,4 @@
+
 package com.napier.sem;
 
 import java.sql.*;
@@ -11,13 +12,18 @@ public class App
     private Connection con = null;
 
     /**
-     * Connect to the MySQL database.
+     * Connect to the MySQL database at the supplied host and port.
+     * Wait only after a failed attempt, to support fast local debugging.
+     *
+     * @param location Database hostname and port
+     *                 (e.g. localhost:33060 or db:3306).
+     * @param delay Milliseconds to wait between failed attempts.
      */
-    public void connect()
+    public void connect(String location, int delay)
     {
         try
         {
-            // Load Database driver
+            // Load MySQL Connector/J driver.
             Class.forName("com.mysql.cj.jdbc.Driver");
         }
         catch (ClassNotFoundException e)
@@ -27,6 +33,7 @@ public class App
         }
 
         int retries = 10;
+        boolean shouldWait = false;
 
         for (int i = 0; i < retries; ++i)
         {
@@ -34,12 +41,14 @@ public class App
 
             try
             {
-                // Wait for database to start
-                Thread.sleep(30000);
+                if (shouldWait)
+                {
+                    Thread.sleep(delay);
+                }
 
-                // Connect to database
                 con = DriverManager.getConnection(
-                        "jdbc:mysql://db:3306/employees?useSSL=false",
+                        "jdbc:mysql://" + location
+                                + "/employees?allowPublicKeyRetrieval=true&useSSL=false",
                         "root",
                         "example"
                 );
@@ -50,15 +59,16 @@ public class App
             catch (SQLException sqle)
             {
                 System.out.println(
-                        "Failed to connect to database attempt " + i
+                        "Failed to connect to database attempt " + (i + 1)
                 );
                 System.out.println(sqle.getMessage());
+                shouldWait = true;
             }
             catch (InterruptedException ie)
             {
-                System.out.println(
-                        "Thread interrupted? Should not happen."
-                );
+                Thread.currentThread().interrupt();
+                System.out.println("Database connection retry interrupted");
+                break;
             }
         }
     }
@@ -86,7 +96,8 @@ public class App
     /**
      * Gets all current employees and salaries.
      *
-     * @return A list of all employees and salaries, or null if there is an error.
+     * @return A list of all employees and salaries,
+     *         or null if there is an error.
      */
     public ArrayList<Employee> getAllSalaries()
     {
@@ -134,7 +145,6 @@ public class App
      */
     public void printSalaries(ArrayList<Employee> employees)
     {
-
         if (employees == null)
         {
             System.out.println("No employees");
@@ -155,7 +165,7 @@ public class App
         // Loop over all employees in the list
         for (Employee emp : employees)
         {
-
+            // Skip null employee records
             if (emp == null)
             {
                 continue;
@@ -214,6 +224,7 @@ public class App
                 emp.last_name = rset.getString("last_name");
                 emp.title = rset.getString("title");
                 emp.salary = rset.getInt("salary");
+
                 Department dept = new Department();
                 dept.dept_name = rset.getString("dept_name");
                 emp.dept = dept;
@@ -222,6 +233,7 @@ public class App
                 manager.first_name = rset.getString("manager");
                 emp.manager = manager;
                 dept.manager = manager;
+
                 return emp;
             }
             else
@@ -243,8 +255,8 @@ public class App
      * @param dept_name Name of the department.
      * @return Department object or null if not found.
      */
-    public Department getDepartment(String dept_name) {
-
+    public Department getDepartment(String dept_name)
+    {
         String sql =
                 "SELECT d.dept_no, d.dept_name, "
                         + "m.emp_no AS manager_no, "
@@ -257,13 +269,14 @@ public class App
                         + "LEFT JOIN employees m ON dm.emp_no = m.emp_no "
                         + "WHERE d.dept_name = ?";
 
-        try (PreparedStatement stmt = con.prepareStatement(sql)) {
-
+        try (PreparedStatement stmt = con.prepareStatement(sql))
+        {
             stmt.setString(1, dept_name);
 
-            try (ResultSet rset = stmt.executeQuery()) {
-
-                if (rset.next()) {
+            try (ResultSet rset = stmt.executeQuery())
+            {
+                if (rset.next())
+                {
                     Department dept = new Department();
 
                     dept.dept_no = rset.getString("dept_no");
@@ -271,7 +284,8 @@ public class App
 
                     int managerNo = rset.getInt("manager_no");
 
-                    if (!rset.wasNull()) {
+                    if (!rset.wasNull())
+                    {
                         Employee manager = new Employee();
 
                         manager.emp_no = managerNo;
@@ -288,9 +302,12 @@ public class App
 
                 return null;
             }
-
-        } catch (SQLException e) {
-            System.out.println("Failed to get department: " + e.getMessage());
+        }
+        catch (SQLException e)
+        {
+            System.out.println(
+                    "Failed to get department: " + e.getMessage()
+            );
             return null;
         }
     }
@@ -359,38 +376,85 @@ public class App
      *
      * @param emp Employee to display
      */
-
     public void displayEmployee(Employee emp)
     {
         if (emp != null)
         {
             System.out.println("Employee Number: " + emp.emp_no);
-            System.out.println("Name: " + emp.first_name + " " + emp.last_name);
+            System.out.println(
+                    "Name: " + emp.first_name + " " + emp.last_name
+            );
             System.out.println("Title: " + emp.title);
             System.out.println("Salary: " + emp.salary);
-            System.out.println("Department: " +
-                    (emp.dept != null ? emp.dept.dept_name : "N/A"));
 
-            System.out.println("Manager: " +
-                    (emp.manager != null
-                            ? emp.manager.first_name + " " + emp.manager.last_name
-                            : "N/A"));
+            System.out.println(
+                    "Department: "
+                            + (emp.dept != null
+                            ? emp.dept.dept_name
+                            : "N/A")
+            );
+
+            System.out.println(
+                    "Manager: "
+                            + (emp.manager != null
+                            ? emp.manager.first_name + " "
+                            + emp.manager.last_name
+                            : "N/A")
+            );
         }
         else
         {
             System.out.println("Employee not found");
-
         }
     }
 
-
+    /**
+     * Start the application using local or Docker database settings.
+     *
+     * Local default: localhost:33060
+     * Docker example: db:3306 10000
+     */
     public static void main(String[] args)
     {
         // Create application
         App a = new App();
 
+        // Use local defaults or command-line parameters.
+        String location = "localhost:33060";
+        int delay = 10000;
+
+        if (args.length == 2)
+        {
+            location = args[0];
+
+            try
+            {
+                delay = Integer.parseInt(args[1]);
+
+                if (delay < 0)
+                {
+                    System.err.println("Delay must not be negative.");
+                    return;
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                System.err.println(
+                        "Delay must be an integer in milliseconds."
+                );
+                return;
+            }
+        }
+        else if (args.length != 0)
+        {
+            System.err.println(
+                    "Usage: App [host:port delayMilliseconds]"
+            );
+            return;
+        }
+
         // Connect to database
-        a.connect();
+        a.connect(location, delay);
 
         try
         {
@@ -404,9 +468,11 @@ public class App
                 // Display department manager
                 if (sales.manager != null)
                 {
-                    System.out.println("Manager: "
-                            + sales.manager.first_name + " "
-                            + sales.manager.last_name);
+                    System.out.println(
+                            "Manager: "
+                                    + sales.manager.first_name + " "
+                                    + sales.manager.last_name
+                    );
                 }
 
                 // Retrieve salaries for Sales department
@@ -430,5 +496,4 @@ public class App
             a.disconnect();
         }
     }
-
 }
