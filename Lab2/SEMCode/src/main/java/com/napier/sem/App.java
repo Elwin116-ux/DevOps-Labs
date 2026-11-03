@@ -187,36 +187,44 @@ public class App
     /**
      * Get employee details from the database.
      *
+     * Uses LEFT JOIN so a newly inserted employee can
+     * be retrieved even without a salary, title or department.
+     *
      * @param ID Employee number
      * @return Employee object or null if not found
      */
     public Employee getEmployee(int ID)
     {
-        try
+        String sql =
+                "SELECT e.emp_no, e.first_name, e.last_name, "
+                        + "t.title, s.salary, d.dept_no, d.dept_name, "
+                        + "m.emp_no AS manager_no, "
+                        + "m.first_name AS manager_first_name, "
+                        + "m.last_name AS manager_last_name "
+                        + "FROM employees e "
+                        + "LEFT JOIN titles t ON e.emp_no = t.emp_no "
+                        + "AND t.to_date = '9999-01-01' "
+                        + "LEFT JOIN salaries s ON e.emp_no = s.emp_no "
+                        + "AND s.to_date = '9999-01-01' "
+                        + "LEFT JOIN dept_emp de ON e.emp_no = de.emp_no "
+                        + "AND de.to_date = '9999-01-01' "
+                        + "LEFT JOIN departments d ON de.dept_no = d.dept_no "
+                        + "LEFT JOIN dept_manager dm ON d.dept_no = dm.dept_no "
+                        + "AND dm.to_date = '9999-01-01' "
+                        + "LEFT JOIN employees m ON dm.emp_no = m.emp_no "
+                        + "WHERE e.emp_no = ?";
+
+        try (PreparedStatement stmt = con.prepareStatement(sql))
         {
-            Statement stmt = con.createStatement();
+            stmt.setInt(1, ID);
 
-            String strSelect =
-                    "SELECT e.emp_no, e.first_name, e.last_name, "
-                            + "t.title, s.salary, d.dept_name, "
-                            + "CONCAT(m.first_name, ' ', m.last_name) AS manager "
-                            + "FROM employees e "
-                            + "JOIN titles t ON e.emp_no = t.emp_no "
-                            + "JOIN salaries s ON e.emp_no = s.emp_no "
-                            + "JOIN dept_emp de ON e.emp_no = de.emp_no "
-                            + "JOIN departments d ON de.dept_no = d.dept_no "
-                            + "JOIN dept_manager dm ON d.dept_no = dm.dept_no "
-                            + "JOIN employees m ON dm.emp_no = m.emp_no "
-                            + "WHERE e.emp_no = " + ID + " "
-                            + "AND t.to_date = '9999-01-01' "
-                            + "AND s.to_date = '9999-01-01' "
-                            + "AND de.to_date = '9999-01-01' "
-                            + "AND dm.to_date = '9999-01-01'";
-
-            ResultSet rset = stmt.executeQuery(strSelect);
-
-            if (rset.next())
+            try (ResultSet rset = stmt.executeQuery())
             {
+                if (!rset.next())
+                {
+                    return null;
+                }
+
                 Employee emp = new Employee();
 
                 emp.emp_no = rset.getInt("emp_no");
@@ -225,26 +233,41 @@ public class App
                 emp.title = rset.getString("title");
                 emp.salary = rset.getInt("salary");
 
-                Department dept = new Department();
-                dept.dept_name = rset.getString("dept_name");
-                emp.dept = dept;
+                String deptNo = rset.getString("dept_no");
 
-                Employee manager = new Employee();
-                manager.first_name = rset.getString("manager");
-                emp.manager = manager;
-                dept.manager = manager;
+                if (deptNo != null)
+                {
+                    Department dept = new Department();
+
+                    dept.dept_no = deptNo;
+                    dept.dept_name = rset.getString("dept_name");
+                    emp.dept = dept;
+
+                    int managerNo = rset.getInt("manager_no");
+
+                    if (!rset.wasNull())
+                    {
+                        Employee manager = new Employee();
+
+                        manager.emp_no = managerNo;
+                        manager.first_name =
+                                rset.getString("manager_first_name");
+                        manager.last_name =
+                                rset.getString("manager_last_name");
+
+                        emp.manager = manager;
+                        dept.manager = manager;
+                    }
+                }
 
                 return emp;
             }
-            else
-            {
-                return null;
-            }
         }
-        catch (Exception e)
+        catch (SQLException e)
         {
-            System.out.println(e.getMessage());
-            System.out.println("Failed to get employee details");
+            System.out.println(
+                    "Failed to get employee details: " + e.getMessage()
+            );
             return null;
         }
     }
@@ -381,9 +404,11 @@ public class App
         if (emp != null)
         {
             System.out.println("Employee Number: " + emp.emp_no);
+
             System.out.println(
                     "Name: " + emp.first_name + " " + emp.last_name
             );
+
             System.out.println("Title: " + emp.title);
             System.out.println("Salary: " + emp.salary);
 
@@ -494,6 +519,54 @@ public class App
         {
             // Disconnect from database
             a.disconnect();
+        }
+    }
+
+    /**
+     * Lab 7 - Add a new employee to the MySQL employees table.
+     *
+     * The dates and gender are temporary sample values for
+     * this laboratory exercise because the integration test
+     * supplies only an employee number and name.
+     *
+     * @param emp Employee to add
+     */
+    public void addEmployee(Employee emp)
+    {
+        if (emp == null)
+        {
+            throw new IllegalArgumentException(
+                    "Employee must not be null"
+            );
+        }
+
+        String sql =
+                "INSERT INTO employees "
+                        + "(emp_no, first_name, last_name, birth_date, gender, hire_date) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (PreparedStatement stmt = con.prepareStatement(sql))
+        {
+            stmt.setInt(1, emp.emp_no);
+            stmt.setString(2, emp.first_name);
+            stmt.setString(3, emp.last_name);
+            stmt.setDate(4, Date.valueOf("1990-01-01"));
+            stmt.setString(5, "M");
+            stmt.setDate(6, Date.valueOf("2020-01-01"));
+
+            stmt.executeUpdate();
+
+            System.out.println("Employee added successfully.");
+        }
+        catch (SQLException e)
+        {
+            System.out.println(
+                    "Failed to add employee: " + e.getMessage()
+            );
+
+            throw new IllegalStateException(
+                    "Unable to add employee", e
+            );
         }
     }
 }
