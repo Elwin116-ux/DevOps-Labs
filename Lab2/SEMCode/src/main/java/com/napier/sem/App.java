@@ -3,6 +3,11 @@ package com.napier.sem;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class App
 {
@@ -13,17 +18,15 @@ public class App
 
     /**
      * Connect to the MySQL database at the supplied host and port.
-     * Wait only after a failed attempt, to support fast local debugging.
+     * Wait only after a failed attempt.
      *
-     * @param location Database hostname and port
-     *                 (e.g. localhost:33060 or db:3306).
-     * @param delay Milliseconds to wait between failed attempts.
+     * @param location Database hostname and port.
+     * @param delay Milliseconds between failed attempts.
      */
     public void connect(String location, int delay)
     {
         try
         {
-            // Load MySQL Connector/J driver.
             Class.forName("com.mysql.cj.jdbc.Driver");
         }
         catch (ClassNotFoundException e)
@@ -56,18 +59,20 @@ public class App
                 System.out.println("Successfully connected");
                 break;
             }
-            catch (SQLException sqle)
+            catch (SQLException e)
             {
                 System.out.println(
                         "Failed to connect to database attempt " + (i + 1)
                 );
-                System.out.println(sqle.getMessage());
+                System.out.println(e.getMessage());
                 shouldWait = true;
             }
-            catch (InterruptedException ie)
+            catch (InterruptedException e)
             {
                 Thread.currentThread().interrupt();
-                System.out.println("Database connection retry interrupted");
+                System.out.println(
+                        "Database connection retry interrupted"
+                );
                 break;
             }
         }
@@ -94,10 +99,10 @@ public class App
     }
 
     /**
-     * Gets all current employees and salaries.
+     * Retrieve all current employee salaries.
      *
-     * @return A list of all employees and salaries,
-     *         or null if there is an error.
+     * @return List of employees and salaries,
+     *         or null if an error occurs.
      */
     public ArrayList<Employee> getAllSalaries()
     {
@@ -105,28 +110,39 @@ public class App
         {
             Statement stmt = con.createStatement();
 
-            String strSelect =
-                    "SELECT employees.emp_no, employees.first_name, employees.last_name, salaries.salary "
+            String sql =
+                    "SELECT employees.emp_no, "
+                            + "employees.first_name, "
+                            + "employees.last_name, "
+                            + "salaries.salary "
                             + "FROM employees, salaries "
                             + "WHERE employees.emp_no = salaries.emp_no "
                             + "AND salaries.to_date = '9999-01-01' "
                             + "ORDER BY employees.emp_no ASC";
 
-            ResultSet rset = stmt.executeQuery(strSelect);
+            ResultSet rset = stmt.executeQuery(sql);
 
-            ArrayList<Employee> employees = new ArrayList<Employee>();
+            ArrayList<Employee> employees =
+                    new ArrayList<>();
 
             while (rset.next())
             {
                 Employee emp = new Employee();
 
-                emp.emp_no = rset.getInt("employees.emp_no");
-                emp.first_name = rset.getString("employees.first_name");
-                emp.last_name = rset.getString("employees.last_name");
-                emp.salary = rset.getInt("salaries.salary");
+                emp.emp_no =
+                        rset.getInt("employees.emp_no");
+                emp.first_name =
+                        rset.getString("employees.first_name");
+                emp.last_name =
+                        rset.getString("employees.last_name");
+                emp.salary =
+                        rset.getInt("salaries.salary");
 
                 employees.add(emp);
             }
+
+            rset.close();
+            stmt.close();
 
             return employees;
         }
@@ -139,9 +155,9 @@ public class App
     }
 
     /**
-     * Prints a list of employees and salaries.
+     * Print employee salary information.
      *
-     * @param employees The list of employees to print.
+     * @param employees List of employees.
      */
     public void printSalaries(ArrayList<Employee> employees)
     {
@@ -151,7 +167,6 @@ public class App
             return;
         }
 
-        // Print header
         System.out.println(
                 String.format(
                         "%-10s %-15s %-20s %-8s",
@@ -162,56 +177,60 @@ public class App
                 )
         );
 
-        // Loop over all employees in the list
         for (Employee emp : employees)
         {
-            // Skip null employee records
             if (emp == null)
             {
                 continue;
             }
 
-            String empString =
-                    String.format(
-                            "%-10s %-15s %-20s %-8s",
-                            emp.emp_no,
-                            emp.first_name,
-                            emp.last_name,
-                            emp.salary
-                    );
+            String empString = String.format(
+                    "%-10s %-15s %-20s %-8s",
+                    emp.emp_no,
+                    emp.first_name,
+                    emp.last_name,
+                    emp.salary
+            );
 
             System.out.println(empString);
         }
     }
 
     /**
-     * Get employee details from the database.
+     * Retrieve an employee by employee number.
      *
-     * Uses LEFT JOIN so a newly inserted employee can
-     * be retrieved even without a salary, title or department.
+     * Uses LEFT JOIN so employees without salary,
+     * department or title records can be retrieved.
      *
-     * @param ID Employee number
-     * @return Employee object or null if not found
+     * @param ID Employee number.
+     * @return Employee or null if not found.
      */
     public Employee getEmployee(int ID)
     {
         String sql =
                 "SELECT e.emp_no, e.first_name, e.last_name, "
-                        + "t.title, s.salary, d.dept_no, d.dept_name, "
+                        + "t.title, s.salary, "
+                        + "d.dept_no, d.dept_name, "
                         + "m.emp_no AS manager_no, "
                         + "m.first_name AS manager_first_name, "
                         + "m.last_name AS manager_last_name "
                         + "FROM employees e "
-                        + "LEFT JOIN titles t ON e.emp_no = t.emp_no "
+                        + "LEFT JOIN titles t "
+                        + "ON e.emp_no = t.emp_no "
                         + "AND t.to_date = '9999-01-01' "
-                        + "LEFT JOIN salaries s ON e.emp_no = s.emp_no "
+                        + "LEFT JOIN salaries s "
+                        + "ON e.emp_no = s.emp_no "
                         + "AND s.to_date = '9999-01-01' "
-                        + "LEFT JOIN dept_emp de ON e.emp_no = de.emp_no "
+                        + "LEFT JOIN dept_emp de "
+                        + "ON e.emp_no = de.emp_no "
                         + "AND de.to_date = '9999-01-01' "
-                        + "LEFT JOIN departments d ON de.dept_no = d.dept_no "
-                        + "LEFT JOIN dept_manager dm ON d.dept_no = dm.dept_no "
+                        + "LEFT JOIN departments d "
+                        + "ON de.dept_no = d.dept_no "
+                        + "LEFT JOIN dept_manager dm "
+                        + "ON d.dept_no = dm.dept_no "
                         + "AND dm.to_date = '9999-01-01' "
-                        + "LEFT JOIN employees m ON dm.emp_no = m.emp_no "
+                        + "LEFT JOIN employees m "
+                        + "ON dm.emp_no = m.emp_no "
                         + "WHERE e.emp_no = ?";
 
         try (PreparedStatement stmt = con.prepareStatement(sql))
@@ -266,7 +285,8 @@ public class App
         catch (SQLException e)
         {
             System.out.println(
-                    "Failed to get employee details: " + e.getMessage()
+                    "Failed to get employee details: "
+                            + e.getMessage()
             );
             return null;
         }
@@ -275,8 +295,8 @@ public class App
     /**
      * Retrieve a department by its name.
      *
-     * @param dept_name Name of the department.
-     * @return Department object or null if not found.
+     * @param dept_name Department name.
+     * @return Department or null if not found.
      */
     public Department getDepartment(String dept_name)
     {
@@ -289,7 +309,8 @@ public class App
                         + "LEFT JOIN dept_manager dm "
                         + "ON d.dept_no = dm.dept_no "
                         + "AND dm.to_date = '9999-01-01' "
-                        + "LEFT JOIN employees m ON dm.emp_no = m.emp_no "
+                        + "LEFT JOIN employees m "
+                        + "ON dm.emp_no = m.emp_no "
                         + "WHERE d.dept_name = ?";
 
         try (PreparedStatement stmt = con.prepareStatement(sql))
@@ -329,19 +350,21 @@ public class App
         catch (SQLException e)
         {
             System.out.println(
-                    "Failed to get department: " + e.getMessage()
+                    "Failed to get department: "
+                            + e.getMessage()
             );
             return null;
         }
     }
 
     /**
-     * Retrieve current employee salaries for a department.
+     * Retrieve current salaries for a department.
      *
-     * @param dept Department to retrieve salaries for.
-     * @return List of employees, or null if an error occurs.
+     * @param dept Department to query.
+     * @return Employees or null if an error occurs.
      */
-    public ArrayList<Employee> getSalariesByDepartment(Department dept)
+    public ArrayList<Employee> getSalariesByDepartment(
+            Department dept)
     {
         if (dept == null || dept.dept_no == null)
         {
@@ -350,10 +373,13 @@ public class App
         }
 
         String sql =
-                "SELECT e.emp_no, e.first_name, e.last_name, s.salary "
+                "SELECT e.emp_no, e.first_name, "
+                        + "e.last_name, s.salary "
                         + "FROM employees e "
-                        + "JOIN salaries s ON e.emp_no = s.emp_no "
-                        + "JOIN dept_emp de ON e.emp_no = de.emp_no "
+                        + "JOIN salaries s "
+                        + "ON e.emp_no = s.emp_no "
+                        + "JOIN dept_emp de "
+                        + "ON e.emp_no = de.emp_no "
                         + "WHERE s.to_date = '9999-01-01' "
                         + "AND de.to_date = '9999-01-01' "
                         + "AND de.dept_no = ? "
@@ -365,15 +391,18 @@ public class App
 
             try (ResultSet rset = stmt.executeQuery())
             {
-                ArrayList<Employee> employees = new ArrayList<>();
+                ArrayList<Employee> employees =
+                        new ArrayList<>();
 
                 while (rset.next())
                 {
                     Employee emp = new Employee();
 
                     emp.emp_no = rset.getInt("emp_no");
-                    emp.first_name = rset.getString("first_name");
-                    emp.last_name = rset.getString("last_name");
+                    emp.first_name =
+                            rset.getString("first_name");
+                    emp.last_name =
+                            rset.getString("last_name");
                     emp.salary = rset.getInt("salary");
 
                     emp.dept = dept;
@@ -388,7 +417,8 @@ public class App
         catch (SQLException e)
         {
             System.out.println(
-                    "Failed to get department salaries: " + e.getMessage()
+                    "Failed to get department salaries: "
+                            + e.getMessage()
             );
             return null;
         }
@@ -397,16 +427,19 @@ public class App
     /**
      * Display employee details.
      *
-     * @param emp Employee to display
+     * @param emp Employee to display.
      */
     public void displayEmployee(Employee emp)
     {
         if (emp != null)
         {
-            System.out.println("Employee Number: " + emp.emp_no);
+            System.out.println(
+                    "Employee Number: " + emp.emp_no
+            );
 
             System.out.println(
-                    "Name: " + emp.first_name + " " + emp.last_name
+                    "Name: " + emp.first_name
+                            + " " + emp.last_name
             );
 
             System.out.println("Title: " + emp.title);
@@ -434,17 +467,171 @@ public class App
     }
 
     /**
-     * Start the application using local or Docker database settings.
+     * Lab 8 - Generate an employee salary report
+     * in Markdown format.
      *
-     * Local default: localhost:33060
-     * Docker example: db:3306 10000
+     * @param employees Employees to include.
+     * @param filename Markdown filename.
+     */
+    public void outputEmployees(
+            ArrayList<Employee> employees,
+            String filename)
+    {
+        if (employees == null)
+        {
+            throw new IllegalArgumentException(
+                    "Employee list must not be null"
+            );
+        }
+
+        if (filename == null ||
+                !filename.matches("[A-Za-z0-9_-]+\\.md"))
+        {
+            throw new IllegalArgumentException(
+                    "Invalid Markdown filename"
+            );
+        }
+
+        Path reportDirectory = Path.of("reports");
+        Path reportFile = reportDirectory.resolve(filename);
+
+        try
+        {
+            Files.createDirectories(reportDirectory);
+
+            try (BufferedWriter writer =
+                         Files.newBufferedWriter(
+                                 reportFile,
+                                 StandardCharsets.UTF_8))
+            {
+                writer.write(
+                        "| Emp No | First Name | Last Name | Salary | Department |\n"
+                );
+
+                writer.write(
+                        "| --- | --- | --- | ---: | --- |\n"
+                );
+
+                for (Employee emp : employees)
+                {
+                    if (emp == null)
+                    {
+                        continue;
+                    }
+
+                    String department = emp.dept != null
+                            ? emp.dept.dept_name
+                            : "N/A";
+
+                    writer.write(
+                            "| " + emp.emp_no
+                                    + " | " + markdownCell(emp.first_name)
+                                    + " | " + markdownCell(emp.last_name)
+                                    + " | " + emp.salary
+                                    + " | " + markdownCell(department)
+                                    + " |\n"
+                    );
+                }
+            }
+
+            System.out.println(
+                    "Markdown report generated: "
+                            + reportFile.toAbsolutePath()
+            );
+        }
+        catch (IOException e)
+        {
+            throw new IllegalStateException(
+                    "Failed to create Markdown report",
+                    e
+            );
+        }
+    }
+
+    /**
+     * Escape special Markdown table characters.
+     *
+     * @param value Text to format.
+     * @return Markdown-safe text.
+     */
+    private static String markdownCell(String value)
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        return value
+                .replace("|", "\\|")
+                .replace("\r", " ")
+                .replace("\n", " ");
+    }
+
+    /**
+     * Lab 7 - Add a new employee to MySQL.
+     *
+     * @param emp Employee to add.
+     */
+    public void addEmployee(Employee emp)
+    {
+        if (emp == null)
+        {
+            throw new IllegalArgumentException(
+                    "Employee must not be null"
+            );
+        }
+
+        String sql =
+                "INSERT INTO employees "
+                        + "(emp_no, first_name, last_name, "
+                        + "birth_date, gender, hire_date) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (PreparedStatement stmt =
+                     con.prepareStatement(sql))
+        {
+            stmt.setInt(1, emp.emp_no);
+            stmt.setString(2, emp.first_name);
+            stmt.setString(3, emp.last_name);
+            stmt.setDate(
+                    4,
+                    Date.valueOf("1990-01-01")
+            );
+            stmt.setString(5, "M");
+            stmt.setDate(
+                    6,
+                    Date.valueOf("2020-01-01")
+            );
+
+            stmt.executeUpdate();
+
+            System.out.println(
+                    "Employee added successfully."
+            );
+        }
+        catch (SQLException e)
+        {
+            System.out.println(
+                    "Failed to add employee: "
+                            + e.getMessage()
+            );
+
+            throw new IllegalStateException(
+                    "Unable to add employee",
+                    e
+            );
+        }
+    }
+
+    /**
+     * Application entry point.
+     *
+     * Supports local and Docker database connections.
      */
     public static void main(String[] args)
     {
-        // Create application
         App a = new App();
 
-        // Use local defaults or command-line parameters.
         String location = "localhost:33060";
         int delay = 10000;
 
@@ -458,7 +645,9 @@ public class App
 
                 if (delay < 0)
                 {
-                    System.err.println("Delay must not be negative.");
+                    System.err.println(
+                            "Delay must not be negative."
+                    );
                     return;
                 }
             }
@@ -478,95 +667,59 @@ public class App
             return;
         }
 
-        // Connect to database
+        // Connect to the MySQL database.
         a.connect(location, delay);
 
         try
         {
-            // Retrieve Sales department
-            Department sales = a.getDepartment("Sales");
+            // Retrieve the Sales department.
+            Department sales =
+                    a.getDepartment("Sales");
 
             if (sales != null)
             {
-                System.out.println("Department: " + sales.dept_name);
+                System.out.println(
+                        "Department: " + sales.dept_name
+                );
 
-                // Display department manager
+                // Display the department manager.
                 if (sales.manager != null)
                 {
                     System.out.println(
                             "Manager: "
-                                    + sales.manager.first_name + " "
+                                    + sales.manager.first_name
+                                    + " "
                                     + sales.manager.last_name
                     );
                 }
 
-                // Retrieve salaries for Sales department
+                // Retrieve salaries.
                 ArrayList<Employee> employees =
                         a.getSalariesByDepartment(sales);
 
-                // Display results
                 if (employees != null)
                 {
+                    // Display results in the console.
                     a.printSalaries(employees);
+
+                    // Lab 8: Generate Markdown report.
+                    a.outputEmployees(
+                            employees,
+                            "SalesSalaries.md"
+                    );
                 }
             }
             else
             {
-                System.out.println("Sales department not found.");
+                System.out.println(
+                        "Sales department not found."
+                );
             }
         }
         finally
         {
-            // Disconnect from database
+            // Disconnect from MySQL.
             a.disconnect();
-        }
-    }
-
-    /**
-     * Lab 7 - Add a new employee to the MySQL employees table.
-     *
-     * The dates and gender are temporary sample values for
-     * this laboratory exercise because the integration test
-     * supplies only an employee number and name.
-     *
-     * @param emp Employee to add
-     */
-    public void addEmployee(Employee emp)
-    {
-        if (emp == null)
-        {
-            throw new IllegalArgumentException(
-                    "Employee must not be null"
-            );
-        }
-
-        String sql =
-                "INSERT INTO employees "
-                        + "(emp_no, first_name, last_name, birth_date, gender, hire_date) "
-                        + "VALUES (?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement stmt = con.prepareStatement(sql))
-        {
-            stmt.setInt(1, emp.emp_no);
-            stmt.setString(2, emp.first_name);
-            stmt.setString(3, emp.last_name);
-            stmt.setDate(4, Date.valueOf("1990-01-01"));
-            stmt.setString(5, "M");
-            stmt.setDate(6, Date.valueOf("2020-01-01"));
-
-            stmt.executeUpdate();
-
-            System.out.println("Employee added successfully.");
-        }
-        catch (SQLException e)
-        {
-            System.out.println(
-                    "Failed to add employee: " + e.getMessage()
-            );
-
-            throw new IllegalStateException(
-                    "Unable to add employee", e
-            );
         }
     }
 }
