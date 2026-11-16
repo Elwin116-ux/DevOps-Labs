@@ -1,0 +1,57 @@
+name: Bug Report
+description: Report a bug in DevOps Labs
+title: "[Bug]: "
+labels: ["bug"]
+
+body:
+  - type: input
+    id: lab
+    attributes:
+      label: Lab Number
+      placeholder: "Example: Lab 8"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Describe what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Explain how to reproduce the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behaviour
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - IntelliJ IDEA
+        - Docker Desktop
+        - GitHub Actions
+        - MySQL
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: Provide any relevant error messages.
+      render: shell

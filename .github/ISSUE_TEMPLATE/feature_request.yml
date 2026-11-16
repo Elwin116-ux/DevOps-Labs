@@ -1,0 +1,56 @@
+name: Feature Request
+description: Suggest an improvement to DevOps Labs
+title: "[Feature]: "
+labels: ["enhancement"]
+
+body:
+  - type: input
+    id: lab
+    attributes:
+      label: Lab Number
+      placeholder: "Example: Lab 9"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Limitation
+      description: Describe the problem this feature would solve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Explain how the new feature should work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Describe any other approaches considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before Submitting
+      options:
+        - label: I have checked for similar existing issues.
+          required: true
